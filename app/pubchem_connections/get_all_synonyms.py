@@ -5,10 +5,28 @@ import requests
 
 
 def synonyms_2_synonym_id(synonym_name: str) -> str:
+    """Turn synonym name into md5 hash encoding used by pubChem
+    md5 hashing of lowercase name
+
+    Args:
+        synonym_name (str): Name of synonym
+
+    Returns:
+        str: generated id of synonym
+    """
     return hashlib.md5(synonym_name.lower().encode("utf-8")).hexdigest()
 
 
-async def get_synonyms_name_from_id(synonym_id) -> str:
+async def get_synonyms_name_from_id(synonym_id: str) -> str:
+    """Uses the rdf rest api to get the synonym name based on its idea
+    Generated ID might not be found
+
+    Args:
+        synonym_id (str): md5 encoding of the name
+
+    Returns:
+        str: name of synonym
+    """
     url = f"https://pubchem.ncbi.nlm.nih.gov/rest/rdf/synonym/MD5_{synonym_id}.json"
     response = requests.get(url).json()
     synonym = response[f"synonym/MD5_{synonym_id}"].get(
@@ -21,7 +39,15 @@ async def get_synonyms_name_from_id(synonym_id) -> str:
     return name
 
 
-async def get_synonyms_from_rdf(compound_id: int) -> List[str]:
+async def get_synonyms_ids_from_rdf(compound_id: int) -> List[str]:
+    """Get all synonyms of a compound using the RDF rest api
+
+    Args:
+        compound_id (int): compound id
+
+    Returns:
+        List[str]: list of ids
+    """
     url = f"https://pubchem.ncbi.nlm.nih.gov/rest/rdf/compound/CID{compound_id}.json"
     response = requests.get(url).json()
     synonym_prefix = "synonym/MD5_"
@@ -38,12 +64,21 @@ async def get_synonyms_from_rdf(compound_id: int) -> List[str]:
 
 
 async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
+    """get compounds of a synonym by its name
+    used the rest API (not RDF)
+
+    Args:
+        synonym_name (str): name of synonym
+
+    Returns:
+        List[dict]: compounds
+    """
     pubChemUrl = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{synonym_name.lower()}/synonyms/JSON"
 
     response = requests.get(pubChemUrl).json()
     compounds = response.get("InformationList", {}).get("Information")
     for compound in compounds:
-        rdf_synonyms = await get_synonyms_from_rdf(compound["CID"])
+        rdf_synonyms = await get_synonyms_ids_from_rdf(compound["CID"])
         rest_synonyms_names = compound.get("Synonym", [])
         rest_synonyms = [
             {"id": synonyms_2_synonym_id(i), "name": i.lower()}
