@@ -115,8 +115,7 @@ async def get_synonyms_from_rdf(compound_id: int) -> List[str]:
     return synonym_ids
 
 
-@app.get("/getSynonymFromPubChem/")
-async def get_synonym_from_pubchem(synonym_name: str) -> dict:
+async def get_compound_from_synonym_name(synonym_name: str) -> dict:
     pubChemUrl = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{synonym_name.lower()}/synonyms/JSON"
 
     response = requests.get(pubChemUrl).json()
