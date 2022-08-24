@@ -49,5 +49,11 @@ async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
             {"id": synonyms_2_synonym_id(i), "name": i.lower()}
             for i in rest_synonyms_names
         ]
-        compound["Synonym"] = rdf_synonyms + rest_synonyms
+
+        all_synonyms = []
+        for i in rdf_synonyms + rest_synonyms:
+            if i["id"] in [i["id"] for i in all_synonyms]:
+                continue
+            all_synonyms.append(i)
+        compound["Synonym"] = all_synonyms
     return compounds
