@@ -1,6 +1,6 @@
 import os
 import regex as re
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from py2neo import Graph
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,15 +44,17 @@ Synonyms with multiple compounds
 """
 
 
-@app.post("/symAutoComplete/")
-async def read_item(chemical_name: str):
+@app.get("/symAutoComplete/")
+async def read_item(chemical_name: str) -> list:
 
-    # Find alls unicode characters (\p) classified as letters ({L}) 
+    # Find alls unicode characters (\p) classified as letters ({L})
     # in a group of at least 2 ({2,})
     # This also helps against (some) forms of cypher injects
-    all_words = re.findall(r"\p{L}{2,}", chemical_name)
-    
-    all_fuzzy_names = "~ AND ".join(all_words) +"~"
+    if not chemical_name:
+        return []
+    all_words = re.findall(r"[\p{L}\d]{2,}", chemical_name)
+
+    all_fuzzy_names = "~ AND ".join(all_words) + "~"
     response = graph.run(
         f""" 
         CALL {{
@@ -68,3 +70,18 @@ async def read_item(chemical_name: str):
     ).data()
 
     return response
+
+
+@app.get("/getCompound/")
+async def get_compound(compound_id: str) -> dict:
+    response = graph.run(
+        f""" 
+        MATCH (c:Compound {{pubChemCompId: "{compound_id}"}})<-[:IS_ATTRIBUTE_OF]-(s:Synonym) 
+        WITH c.pubChemCompId as id, collect(DISTINCT s.name) as synonyms
+        RETURN id, synonyms
+        """
+    ).data()
+
+    if len(response) == 0:
+        raise HTTPException(status_code=404, detail="Compound could not be found")
+    return response[0]
