@@ -1,11 +1,9 @@
 import os
-from typing import List
 import regex as re
 from fastapi import FastAPI, HTTPException
 from py2neo import Graph
 
 from fastapi.middleware.cors import CORSMiddleware
-import requests
 
 app = FastAPI()
 
@@ -87,45 +85,6 @@ async def get_compound(compound_id: str) -> dict:
     if len(response) == 0:
         raise HTTPException(status_code=404, detail="Compound could not be found")
     return response[0]
-
-
-async def get_synonyms_name_from_id(synonym_id) -> str:
-    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/rdf/synonym/MD5_{synonym_id}.json"
-    response = requests.get(url).json()
-    synonym = response[f"synonym/MD5_{synonym_id}"].get(
-        "http://semanticscience.org/resource/has-value"
-    )
-    if synonym is None:
-        return ""
-
-    name = synonym[0].get("value", "").lower()
-    return name
-
-
-async def get_synonyms_from_rdf(compound_id: int) -> List[str]:
-    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/rdf/compound/CID{compound_id}.json"
-    response = requests.get(url).json()
-    synonym_prefix = "synonym/MD5_"
-    synonym_ids = [
-        i.replace(synonym_prefix, "")
-        for i in response.keys()
-        if i.startswith(synonym_prefix)
-        and response[i].get("http://semanticscience.org/resource/is-attribute-of")
-    ]
-    return synonym_ids
-
-
-async def get_compound_from_synonym_name(synonym_name: str) -> dict:
-    pubChemUrl = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{synonym_name.lower()}/synonyms/JSON"
-
-    response = requests.get(pubChemUrl).json()
-    compounds = response.get("InformationList", {}).get("Information")
-    if not compounds:
-        raise HTTPException(
-            status_code=404,
-            detail="Synonym could not be found or did not had compounds",
-        )
-    return compounds
 
 
 @app.get("/updateCompound/")
