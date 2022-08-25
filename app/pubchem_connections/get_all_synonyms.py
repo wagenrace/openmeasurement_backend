@@ -28,8 +28,11 @@ async def get_synonyms_name_from_id(synonym_id: str) -> str:
         str: name of synonym
     """
     url = f"https://pubchem.ncbi.nlm.nih.gov/rest/rdf/synonym/MD5_{synonym_id}.json"
-    response = requests.get(url).json()
-    synonym = response[f"synonym/MD5_{synonym_id}"].get(
+    response = requests.get(url)
+    if response.status_code >= 300 or response.status_code < 200:
+        return ""
+    response_json = response.json()
+    synonym = response_json[f"synonym/MD5_{synonym_id}"].get(
         "http://semanticscience.org/resource/has-value"
     )
     if synonym is None:
@@ -49,16 +52,20 @@ async def get_synonyms_ids_from_rdf(compound_id: int) -> List[str]:
         List[str]: list of ids
     """
     url = f"https://pubchem.ncbi.nlm.nih.gov/rest/rdf/compound/CID{compound_id}.json"
-    response = requests.get(url).json()
+    response = requests.get(url)
+    if response.status_code >= 300 or response.status_code < 200:
+        return []
+
+    response_json = response.json()
     synonym_prefix = "synonym/MD5_"
     synonym_ids = [
         {
             "id": i.replace(synonym_prefix, ""),
             "name": await get_synonyms_name_from_id(i.replace(synonym_prefix, "")),
         }
-        for i in response.keys()
+        for i in response_json.keys()
         if i.startswith(synonym_prefix)
-        and response[i].get("http://semanticscience.org/resource/is-attribute-of")
+        and response_json[i].get("http://semanticscience.org/resource/is-attribute-of")
     ]
     return synonym_ids
 
