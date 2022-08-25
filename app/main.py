@@ -98,9 +98,9 @@ def update_compound(compound_id: int, synonyms: list[Synonym]):
     graph.run(
         f""" 
         MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})
-        OPTIONAL MATCH (c)<-[:IS_ATTRIBUTE_OF]-(s:Synonym) 
+        OPTIONAL MATCH (c)<-[r:IS_ATTRIBUTE_OF]-(s:Synonym) 
         WHERE NOT s.pubChemSynId IN {[i.id for i in synonyms]}
-        DETACH DELETE s
+        DELETE r
         """
     )
 
