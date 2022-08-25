@@ -103,16 +103,13 @@ def update_compound(compound_id: int, synonyms: list[Synonym]):
         DETACH DELETE s
         """
     )
-    
+
     # Create all the new synonyms and connections to the compound
     create_query = f""" 
         MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})
         """
     for idx, s in enumerate(synonyms):
-        create_query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}"}})
+        create_query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}", name: "{s.name}"}})
         MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s{idx})
-        SET (s{idx}).name = "{s.name}"
         """
-    graph.run(
-        create_query
-    )
+    graph.run(create_query)
