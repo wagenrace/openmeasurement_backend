@@ -3,6 +3,8 @@ from typing import List
 
 import requests
 
+from ..types import Synonym
+
 
 def synonyms_2_synonym_id(synonym_name: str) -> str:
     """Turn synonym name into md5 hash encoding used by pubChem
@@ -59,10 +61,10 @@ async def get_synonyms_ids_from_rdf(compound_id: int) -> List[str]:
     response_json = response.json()
     synonym_prefix = "synonym/MD5_"
     synonym_ids = [
-        {
-            "id": i.replace(synonym_prefix, ""),
-            "name": await get_synonyms_name_from_id(i.replace(synonym_prefix, "")),
-        }
+        Synonym(
+            id=i.replace(synonym_prefix, ""),
+            name=await get_synonyms_name_from_id(i.replace(synonym_prefix, "")),
+        )
         for i in response_json.keys()
         if i.startswith(synonym_prefix)
         and response_json[i].get("http://semanticscience.org/resource/is-attribute-of")
@@ -88,13 +90,13 @@ async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
         rdf_synonyms = await get_synonyms_ids_from_rdf(compound["CID"])
         rest_synonyms_names = compound.get("Synonym", [])
         rest_synonyms = [
-            {"id": synonyms_2_synonym_id(i), "name": i.lower()}
+            Synonym(name=i.lower(), id=synonyms_2_synonym_id(i))
             for i in rest_synonyms_names
         ]
 
         all_synonyms = []
         for i in rdf_synonyms + rest_synonyms:
-            if i["id"] in [i["id"] for i in all_synonyms]:
+            if i.id in [i.id for i in all_synonyms]:
                 continue
             all_synonyms.append(i)
         compound["Synonym"] = all_synonyms
