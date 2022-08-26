@@ -85,8 +85,10 @@ async def update_compounds(compound_id: int) -> dict:
 
 
 @app.get("/updatePubchemSynonymsByName/")
-async def get_compounds_of_synonyms(synonym_name: str):
+async def update_by_synonym_name(synonym_name: str):
     all_compounds = await get_compound_from_synonym_name(synonym_name)
+    for compound in all_compounds:
+        update_compound(compound["CID"], compound["Synonym"])
     return all_compounds
 
 
