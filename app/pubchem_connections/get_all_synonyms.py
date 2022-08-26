@@ -74,7 +74,7 @@ async def get_synonyms_ids_from_rdf(compound_id: int) -> List[str]:
 
 async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
     """get compounds of a synonym by its name
-    used the rest API (not RDF)
+    used the PUG API (not RDF)
 
     Args:
         synonym_name (str): name of synonym
@@ -88,14 +88,14 @@ async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
     compounds = response.get("InformationList", {}).get("Information")
     for compound in compounds:
         rdf_synonyms = await get_synonyms_ids_from_rdf(compound["CID"])
-        rest_synonyms_names = compound.get("Synonym", [])
-        rest_synonyms = [
+        pug_synonyms_names = compound.get("Synonym", [])
+        pug_synonyms = [
             Synonym(name=i.lower(), id=synonyms_2_synonym_id(i))
-            for i in rest_synonyms_names
+            for i in pug_synonyms_names
         ]
 
         all_synonyms = []
-        for i in rdf_synonyms + rest_synonyms:
+        for i in rdf_synonyms + pug_synonyms:
             if i.id in [i.id for i in all_synonyms]:
                 continue
             all_synonyms.append(i)
