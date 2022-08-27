@@ -85,7 +85,7 @@ async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
     pubChemUrl = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{synonym_name.lower()}/synonyms/JSON"
 
     response = requests.get(pubChemUrl).json()
-    compounds = response.get("InformationList", {}).get("Information")
+    compounds = response.get("InformationList", {}).get("Information", [])
     for compound in compounds:
         rdf_synonyms = await get_synonyms_ids_from_rdf(compound["CID"])
         pug_synonyms_names = compound.get("Synonym", [])
