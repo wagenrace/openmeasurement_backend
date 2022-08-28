@@ -1,5 +1,4 @@
 import hashlib
-from typing import List
 
 import requests
 
@@ -44,7 +43,7 @@ async def get_synonyms_name_from_id(synonym_id: str) -> str:
     return name
 
 
-async def get_synonyms_ids_from_rdf(compound_id: int) -> List[str]:
+async def get_synonyms_ids_from_rdf(compound_id: int) -> list[str]:
     """Get all synonyms of a compound using the RDF rest api
 
     Args:
@@ -72,7 +71,7 @@ async def get_synonyms_ids_from_rdf(compound_id: int) -> List[str]:
     return synonym_ids
 
 
-async def get_compound_from_synonym_name(synonym_name: str) -> List[dict]:
+async def get_compound_from_synonym_name(synonym_name: str) -> list[dict]:
     """get compounds of a synonym by its name
     used the PUG API (not RDF)
 
