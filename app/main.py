@@ -7,6 +7,7 @@ from py2neo import Graph
 from .types import Synonym
 
 from .pubchem_connections import get_compound_from_synonym_name
+from .encode_for_neo4j import encode2neo4j
 
 app = FastAPI()
 
@@ -87,6 +88,7 @@ async def update_compounds(compound_id: int) -> dict:
 @app.get("/updatePubchemSynonymsByName/")
 async def update_by_synonym_name(synonym_name: str):
     all_compounds = await get_compound_from_synonym_name(synonym_name)
+    print(f"found {len(all_compounds)} compounds for synonym {synonym_name}")
     for compound in all_compounds:
         update_compound(compound["CID"], compound["Synonym"])
     return all_compounds
@@ -111,7 +113,7 @@ def update_compound(compound_id: int, synonyms: list[Synonym]):
         MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})
         """
     for idx, s in enumerate(synonyms):
-        create_query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}", name: "{s.name}"}})
+        create_query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}", name: "{encode2neo4j(s.name)}"}})
         MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s{idx})
         """
     graph.run(create_query)
