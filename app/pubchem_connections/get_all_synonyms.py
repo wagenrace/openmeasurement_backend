@@ -62,7 +62,7 @@ async def get_synonyms_ids_from_rdf(compound_id: int) -> list[str]:
     synonym_ids = [
         Synonym(
             id=i.replace(synonym_prefix, ""),
-            name=await get_synonyms_name_from_id(i.replace(synonym_prefix, "")),
+            name=None,
         )
         for i in response_json.keys()
         if i.startswith(synonym_prefix)
@@ -98,9 +98,11 @@ async def get_compound_from_synonym_name(synonym_name: str) -> list[dict]:
 
         # Remove synonyms with duplicate id
         all_synonyms = []
-        for i in rdf_synonyms + pug_synonyms:
+        for i in pug_synonyms + rdf_synonyms:
             if i.id in [i.id for i in all_synonyms]:
                 continue
+            if not i.name:
+                i.name = await get_synonyms_name_from_id(i.id)
             all_synonyms.append(i)
         compound["Synonym"] = all_synonyms
     return compounds
