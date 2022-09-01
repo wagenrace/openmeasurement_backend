@@ -86,13 +86,17 @@ async def get_compound_from_synonym_name(synonym_name: str) -> list[dict]:
     response = requests.get(pubChemUrl).json()
     compounds = response.get("InformationList", {}).get("Information", [])
     for compound in compounds:
+        # Get the synonyms of RDF
         rdf_synonyms = await get_synonyms_ids_from_rdf(compound["CID"])
+
+        # Given every PUG synonym a constructed ID
         pug_synonyms_names = compound.get("Synonym", [])
         pug_synonyms = [
             Synonym(name=i.lower(), id=synonyms_2_synonym_id(i))
             for i in pug_synonyms_names
         ]
 
+        # Remove synonyms with duplicate id
         all_synonyms = []
         for i in rdf_synonyms + pug_synonyms:
             if i.id in [i.id for i in all_synonyms]:
