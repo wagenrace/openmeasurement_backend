@@ -1,0 +1,1 @@
+from .get_all_synonyms import get_compound_from_synonym_name

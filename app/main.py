@@ -1,9 +1,13 @@
 import os
+
 import regex as re
 from fastapi import FastAPI, HTTPException
-from py2neo import Graph
-
 from fastapi.middleware.cors import CORSMiddleware
+from py2neo import Graph
+from .types import Synonym
+
+from .pubchem_connections import get_compound_from_synonym_name
+from .encode_for_neo4j import encode2neo4j
 
 app = FastAPI()
 
@@ -17,31 +21,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-url = os.environ["NEO4J_URL"]
-user = os.environ["NEO4J_USER"]
-pswd = os.environ["NEO4J_PSWD"]
+# Default are for local testing
+url = os.environ.get("NEO4J_URL", "bolt://localhost:7687")
+user = os.environ.get("NEO4J_USER", "neo4j")
+pswd = os.environ.get("NEO4J_PSWD", "password")
 
 graph = Graph(url, auth=(user, pswd))
-
-"""
-Synonyms with multiple compounds
-
-"pubChemSynId": "69da37703943cfa2a7a50159cfb1fc95",
-"name": "( inverted exclamation marka)-potassium citramalate monohydrate"
-
-"pubChemSynId": "0f2e32e0f1a7f2cc034303e4ff2b7948",
-"name": "((1-aza-2-(3-thienyl)vinyl)amino)(prop-2-enylamino)methane-1-thione"
-
-"pubChemSynId": "23000d280089903b877dbe0f2b4ff646",
-"name": "(+)-(18-crown-6)-2,3,11,12-tetracarboxamide"
-
-"pubChemSynId": "b20b0d4197f8609dc17d1af12e1ca715",
-"name": "(+)-2,3,4,4a,5,9b-hexahydro-5-(4-aminophenyl)-1h-indeno(1,2-b)pyridine"
-
-"pubChemSynId": "1b464664b35b4cef85295082b46703b1",
-"name": "(+)-2-methylamino-2-phenylpropane hydrochloride"
-
-"""
 
 
 @app.get("/symAutoComplete/")
@@ -76,7 +61,8 @@ async def read_item(chemical_name: str) -> list:
 async def get_compound(compound_id: str) -> dict:
     response = graph.run(
         f""" 
-        MATCH (c:Compound {{pubChemCompId: "{compound_id}"}})<-[:IS_ATTRIBUTE_OF]-(s:Synonym) 
+        MATCH (c:Compound {{pubChemCompId: "{compound_id}"}})
+        OPTIONAL MATCH (c)<-[:IS_ATTRIBUTE_OF]-(s:Synonym) 
         WITH c.pubChemCompId as id, collect(DISTINCT s.name) as synonyms
         RETURN id, synonyms
         """
@@ -85,3 +71,48 @@ async def get_compound(compound_id: str) -> dict:
     if len(response) == 0:
         raise HTTPException(status_code=404, detail="Compound could not be found")
     return response[0]
+
+
+@app.get("/updateCompound/")
+async def update_compounds(compound_id: int) -> dict:
+    compound_id_str: str = f"compound:cid{compound_id}"
+    response = graph.run(
+        f""" 
+        MERGE (c:Compound {{pubChemCompId: "{compound_id_str}"}})
+        RETURN c
+        """
+    ).data()
+    return response
+
+
+@app.get("/updatePubchemSynonymsByName/")
+async def update_by_synonym_name(synonym_name: str):
+    all_compounds = await get_compound_from_synonym_name(synonym_name)
+    print(f"found {len(all_compounds)} compounds for synonym {synonym_name}")
+    for compound in all_compounds:
+        update_compound(compound["CID"], compound["Synonym"])
+    return all_compounds
+
+
+def update_compound(compound_id: int, synonyms: list[Synonym]):
+    compound_id_str = f"compound:cid{compound_id}"
+
+    # Delete all synonyms NOT in the given list
+    # But that do exist in the current database
+    graph.run(
+        f""" 
+        MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})<-[r:IS_ATTRIBUTE_OF]-(s:Synonym) 
+        WHERE NOT s.pubChemSynId IN {[i.id for i in synonyms]}
+        DELETE r
+        """
+    )
+
+    # Create all the new synonyms and connections to the compound
+    create_query = f""" 
+        MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})
+        """
+    for idx, s in enumerate(synonyms):
+        create_query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}", name: "{encode2neo4j(s.name)}"}})
+        MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s{idx})
+        """
+    graph.run(create_query)
