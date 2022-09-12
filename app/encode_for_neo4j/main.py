@@ -5,9 +5,9 @@ def encode2neo4j(string):
 
     # # Neo4j wants ' as '' and " as ""
     # string = string.replace("\\", "\\\\")
-    string = string.replace('\\"', '\"')
+    string = string.replace('\\"', '"')
     # string = string.replace("'", "\\'")
     if "'" in string or '"' in string:
-        string = f'"{string}"'
+        string = f'\\"{string}\\"'
 
     return string
