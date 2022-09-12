@@ -115,5 +115,4 @@ def update_compound(compound_id: int, synonyms: list[Synonym]):
         query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}", name: "{encode2neo4j(s.name)}"}})
         MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s{idx})
         """
-    print(query)
     graph.run(query)
