@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 
 import regex as re
@@ -41,17 +42,18 @@ async def read_item(chemical_name: str) -> list:
 
     all_fuzzy_names = "~ AND ".join(all_words) + "~"
     response = graph.run(
-        f""" 
-        CALL {{
-            CALL db.index.fulltext.queryNodes('synonymsFullText', "{all_fuzzy_names}")
+        """ 
+        CALL {
+            CALL db.index.fulltext.queryNodes('synonymsFullText', $all_fuzzy_names)
             YIELD node, score
             return node, score limit 50
-        }}
+        }
         MATCH (node)-[:IS_ATTRIBUTE_OF]->(c:Compound)
-        WITH DISTINCT c as c, collect({{score: score, node: node}})[0] as s
+        WITH DISTINCT c as c, collect({score: score, node: node})[0] as s
         WITH DISTINCT s as s, collect(c.pubChemCompId) as compoundId
         RETURN s.node.name as name, s.node.pubChemSynId as synonymId, compoundId limit 5
-        """
+        """,
+        all_fuzzy_names=all_fuzzy_names,
     ).data()
 
     return response
@@ -60,12 +62,13 @@ async def read_item(chemical_name: str) -> list:
 @app.get("/getCompound/")
 async def get_compound(compound_id: str) -> dict:
     response = graph.run(
-        f""" 
-        MATCH (c:Compound {{pubChemCompId: "{compound_id}"}})
+        """ 
+        MATCH (c:Compound {pubChemCompId: $compound_id})
         OPTIONAL MATCH (c)<-[:IS_ATTRIBUTE_OF]-(s:Synonym) 
         WITH c.pubChemCompId as id, collect(DISTINCT s.name) as synonyms
         RETURN id, synonyms
-        """
+        """,
+        compound_id=compound_id,
     ).data()
 
     if len(response) == 0:
@@ -77,42 +80,48 @@ async def get_compound(compound_id: str) -> dict:
 async def update_compounds(compound_id: int) -> dict:
     compound_id_str: str = f"compound:cid{compound_id}"
     response = graph.run(
-        f""" 
-        MERGE (c:Compound {{pubChemCompId: "{compound_id_str}"}})
+        """ 
+        MERGE (c:Compound {pubChemCompId: $compound_id_str})
         RETURN c
-        """
+        """,
+        compound_id_str=compound_id_str,
     ).data()
     return response
 
 
 @app.get("/updatePubchemSynonymsByName/")
 async def update_by_synonym_name(synonym_name: str):
+    print(f"Start looking for synonym {synonym_name} | {datetime.now()}")
     all_compounds = await get_compound_from_synonym_name(synonym_name)
-    print(f"found {len(all_compounds)} compounds for synonym {synonym_name}")
+    print(
+        f"found {len(all_compounds)} compounds for synonym {synonym_name} | {datetime.now()}"
+    )
     for compound in all_compounds:
         update_compound(compound["CID"], compound["Synonym"])
+    print(f"Update complete for {synonym_name} | {datetime.now()}")
     return all_compounds
 
 
 def update_compound(compound_id: int, synonyms: list[Synonym]):
     compound_id_str = f"compound:cid{compound_id}"
+    synonyms_id = [s.id for s in synonyms]
+    synonyms = [s.dict() for s in synonyms]
 
     # Delete all synonyms NOT in the given list
     # But that do exist in the current database
-    graph.run(
-        f""" 
-        MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})<-[r:IS_ATTRIBUTE_OF]-(s:Synonym) 
-        WHERE NOT s.pubChemSynId IN {[i.id for i in synonyms]}
+    query = """ 
+        MATCH (c:Compound {pubChemCompId: $compound_id})<-[r:IS_ATTRIBUTE_OF]-(s:Synonym) 
+        WHERE NOT s.pubChemSynId IN $synonyms
         DELETE r
         """
-    )
+    graph.run(query, compound_id=compound_id_str, synonyms=synonyms_id)
 
     # Create all the new synonyms and connections to the compound
-    create_query = f""" 
-        MATCH (c:Compound {{pubChemCompId: "{compound_id_str}"}})
+    query = """ 
+        UNWIND $synonyms as synonym
+        MERGE (c:Compound {pubChemCompId: $compound_id})
+        MERGE (s:Synonym {pubChemSynId: synonym.id})
+        SET s.name = synonym.name
+        MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s)
         """
-    for idx, s in enumerate(synonyms):
-        create_query += f"""MERGE (s{idx}:Synonym {{pubChemSynId: "{s.id}", name: "{encode2neo4j(s.name)}"}})
-        MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s{idx})
-        """
-    graph.run(create_query)
+    graph.run(query, compound_id=compound_id_str, synonyms=synonyms)
