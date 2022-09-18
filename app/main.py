@@ -118,8 +118,9 @@ def update_compound(compound_id: int, synonyms: list[Synonym]):
 
     # Create all the new synonyms and connections to the compound
     query = """ 
-        UNWIND $synonyms as synonym
         MERGE (c:Compound {pubChemCompId: $compound_id})
+        WITH c
+        UNWIND $synonyms as synonym
         MERGE (s:Synonym {pubChemSynId: synonym.id})
         SET s.name = synonym.name
         MERGE (c)<-[:IS_ATTRIBUTE_OF]-(s)
